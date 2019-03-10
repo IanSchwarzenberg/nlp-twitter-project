@@ -1,4 +1,4 @@
-# nlp-twitter-project
+# Natural Language Processing: Analyzing March 2018 Tweets about Barack Obama
 
 My first step was to determine my research question: Are tweets that discuss Barack Obama posted over the past couple of days with emojis happier than ones without emojis? I chose this research question because I was curious about what public opinion of Barack Obama has been like in recent days considering the multitude of scandals Trump is currently involved in. 
 
