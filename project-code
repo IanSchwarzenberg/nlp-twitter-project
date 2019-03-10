@@ -1,0 +1,167 @@
+#NLP TWITTER PROJECT CODE - SENTIMENT ANALYSES OF TWEETS MENTIONING BARACK OBAMA
+
+rm(list=ls())
+
+library(streamR) #for the streaming API
+library(rtweet) #https://cran.r-project.org/web/packages/rtweet/rtweet.pdf
+library(lubridate) #functions for date/time data
+library(ROAuth)
+library(scales) #scales for data visualization
+library(stringr) #string manipulation
+library(tidytext) #for text mining
+library(tokenizers) # for text PARSING
+library(syuzhet)
+library(tidyverse)
+library(ggplot2)
+
+
+access_token <- "2384521765-zANAdjay0paWhFsfI8mAdcxaJbRZetCwkO7CPMx"
+access_secret <-"37FarbrMgRkz4UBc0eCwXXyRF47yrm0wCj284T42cs4IE"
+consumer_key <- "ZwvgT5qWxkOM7MfI1fvwFG0Sd"
+consumer_secret <- "PXO2uJWuF5lrX4sTfxawqvGusPGSIQBOYuHEpri3uuBBydUMbo"
+
+oathfunction <- function(consumer_key, consumer_secret, access_token, access_secret){
+  my_oauth <- ROAuth::OAuthFactory$new(consumerKey=consumer_key,
+                                       consumerSecret=consumer_secret,
+                                       oauthKey=access_token,
+                                       oauthSecret=access_secret,
+                                       needsVerifier=FALSE, handshakeComplete=TRUE,
+                                       verifier="1",
+                                       requestURL="https://api.twitter.com/oauth/request_token",
+                                       authURL="https://api.twitter.com/oauth/authorize",
+                                       accessURL="https://api.twitter.com/oauth/access_token",
+                                       signMethod="HMAC")
+  return(my_oauth)
+}
+
+my_oauth <- oathfunction(consumer_key, consumer_secret, access_token, access_secret)
+
+
+#My research question: Are recent tweets that discuss Obama with emojis happier than ones without emojis?
+
+
+
+# USING STREAMING API:
+
+file = "C:/Users/Ian/Documents/Documents/University_Of_Pennsylvania/Courses/CPLN_691_Data_Viz/Assignment_5/Data/mytwitterstream22.json" #The data will be saved to this file as long as the stream is running
+track = c("Obama")                 #"Search" by keyword(s) (obama in this case)
+follow = NULL                           #"Search" by Twitter user(s)
+loc = NULL #c(-179, -70, 179, 70)             #Geographical bounding box -- (min longitute,min latitude,max longitute,max latitude)
+lang = NULL                             #Filter by language
+timeout = NULL                         #Maximum time (in miliseconds 1000 milliseconds = 1 second)
+tweets = 75000                     #Maximum tweets (usually, it will be less)
+
+#COLLECT OBAMA TWEETS:
+filterStream(file.name = file, 
+             track = track,
+             follow = follow, 
+             locations = loc, 
+             language = lang,
+             #timeout = timeout, 
+             tweets = tweets, 
+             oauth = my_oauth,
+             verbose = TRUE)
+
+
+
+
+#ONCE IT FINISHES, PREPARE THE DATA:
+streamedtweets <- parseTweets(file, verbose = FALSE) 
+
+#Look inside the JSON file:
+
+# IMPORTANT - for the emojis to be properly encoded, you must use the line below
+streamedtweets$text <- iconv(streamedtweets$text , from = "latin1", to = "ascii", sub = "byte")
+
+#replace line breaks with spaces
+streamedtweets$text <- gsub("\n", " ", streamedtweets$text)
+
+#Isolate tweets WITH EMOJIS and clean them up (ex. No RTs):
+EmojiTweets <- streamedtweets %>%
+  filter(!str_detect(text, '^RT|^"')) %>%  
+  filter(!(!str_detect(text, '<'))) %>%  
+  filter(!(!str_detect(text, '>'))) %>%
+  mutate(text = str_replace_all(text, "https://t.co/[A-Za-z\\d]+|&amp;", ""))
+
+write.csv(EmojiTweets, "C:/Users/Ian/Documents/Documents/University_Of_Pennsylvania/Courses/CPLN_691_Data_Viz/Assignment_5/Submissions/SchwarzenbergStreamingData1.csv")
+
+
+#Isolate tweets WITHOUT EMOJIS and clean them up (ex. No RTs):
+NoEmojiTweets <- streamedtweets %>%
+  filter(!str_detect(text, '^RT|^"')) %>%  
+  filter(!str_detect(text, '<')) %>%  
+  filter(!str_detect(text, '>')) %>%
+  mutate(text = str_replace_all(text, "https://t.co/[A-Za-z\\d]+|&amp;", ""))
+
+write.csv(NoEmojiTweets, "C:/Users/Ian/Documents/Documents/University_Of_Pennsylvania/Courses/CPLN_691_Data_Viz/Assignment_5/Submissions/SchwarzenbergStreamingData2.csv")
+
+
+
+
+
+# 1. NRC SENTIMENT ANALYSIS:
+
+# Basic sentiment analysis is quite simple - the words are compared against a corpus
+# of "good" and "bad" words. Good words get a positive score. Bad words get a negative score.
+# the average score across all words determines the overal sentiment. "nrc", score sentiment across multiple dimensions
+
+# NRC Sentiment Analysis on Tweets WITH Emojis:
+EmojiScores <- get_nrc_sentiment(EmojiTweets$text) %>%
+  summarise_all(funs(mean))
+
+# NRC Sentiment Analysis on Tweets WITHOUT Emojis:
+NoEmojiScores <- get_nrc_sentiment(NoEmojiTweets$text) %>%
+  summarise_all(funs(mean))
+
+
+
+#GRAPHS:
+
+#Prepare data for graphing:
+Scores <- rbind(EmojiScores, NoEmojiScores)
+Scores$Emoji_or_None <- c("Yes", "No")
+tallFormat = gather(Scores, key=Emoji_or_None, value=score)
+names(tallFormat)[2]<-paste("Sentiment")
+
+#NRC Graph:
+ggplot(data=tallFormat, aes(x=Sentiment, y=score, fill=Emoji_or_None)) +
+  geom_bar(stat="identity", position=position_dodge(), width = 0.65) + 
+  labs(title = "NRC Sentiment of Tweets about Obama posted from 3/27/18-3/28/18",
+       xlab= "Sentiment",
+       ylab= "Score",
+       fill= "Emoji Used?")
+
+
+
+
+
+
+#2. SIMPLE SYUZHET SENTIMENT ANALYSIS:
+
+#With Emojis:
+EmojiSyuzhet <- get_sentiment(EmojiTweets$text, method="syuzhet")
+EmojiSyuzhetMean <- as.numeric(mean(EmojiSyuzhet))
+
+
+#Without Emojis
+NoEmojiSyuzhet <- get_sentimentNoEmojiTweets$text, method="syuzhet")
+NoEmojiSyuzhetMean <- as.numeric(mean(EmojiSyuzhet))
+
+
+#Prepare data for graphing:
+SyuzhetScores <- rbind(EmojiSyuzhetMean, NoEmojiSyuzhetMean)
+SyuzhetScores <- as.data.frame(SyuzhetScores)
+SyuzhetScores$Emoji_Use <- c("Yes", "No") 
+colnames(SyuzhetScores)[1] <- paste("score")
+SyuzhetScores$score <- as.numeric(SyuzhetScores$score)
+
+
+#SYUZHET GRAPH:
+ggplot(data=SyuzhetScores, aes(x=Emoji_Use, y=score, fill=Emoji_Use)) +
+  geom_bar(stat="identity", width = 0.35) + 
+  geom_hline(yintercept = 0) +
+  ggtitle("Syuzhet Sentiment of Tweets about Obama posted from 3/27/18-3/28/18") + 
+  xlab("Sentiment") + 
+  ylab("Score") + 
+  labs(fill = "Emoji Used?") + 
+  coord_cartesian(ylim = c(-0.06, 0.06)) 
