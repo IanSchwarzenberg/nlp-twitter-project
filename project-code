@@ -15,10 +15,10 @@ library(tidyverse)
 library(ggplot2)
 
 
-access_token <- "2384521765-zANAdjay0paWhFsfI8mAdcxaJbRZetCwkO7CPMx"
-access_secret <-"37FarbrMgRkz4UBc0eCwXXyRF47yrm0wCj284T42cs4IE"
-consumer_key <- "ZwvgT5qWxkOM7MfI1fvwFG0Sd"
-consumer_secret <- "PXO2uJWuF5lrX4sTfxawqvGusPGSIQBOYuHEpri3uuBBydUMbo"
+#access_token <- "" #The access token, secret access, consumer key and secret consumer key are different for everyone
+#access_secret <-""
+#consumer_key <- ""
+#consumer_secret <- ""
 
 oathfunction <- function(consumer_key, consumer_secret, access_token, access_secret){
   my_oauth <- ROAuth::OAuthFactory$new(consumerKey=consumer_key,
